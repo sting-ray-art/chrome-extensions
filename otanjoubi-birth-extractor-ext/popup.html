@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>誕生〇 抽出コピー</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        padding: 12px;
+        width: 360px;
+        font: 13px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Helvetica,
+          Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      }
+      button {
+        width: 100%;
+        padding: 10px 12px;
+        border: 0;
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: 700;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .muted {
+        margin-top: 8px;
+        color: color-mix(in srgb, CanvasText 60%, Canvas 40%);
+        font-size: 12px;
+      }
+      textarea {
+        width: 100%;
+        height: 220px;
+        margin-top: 10px;
+        padding: 10px;
+        box-sizing: border-box;
+        border-radius: 10px;
+        resize: vertical;
+      }
+      .status {
+        margin-top: 8px;
+        font-size: 12px;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <button id="copy">抽出してコピー</button>
+    <div class="muted">
+      対象: <code>https://otanjoubi.jp/select.php?month=..&day=..</code>
+    </div>
+    <div class="status" id="status"></div>
+    <textarea
+      id="preview"
+      placeholder="ここに抽出結果を表示します（コピーもされます）"
+    ></textarea>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
+

@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "お誕生日.jp 誕生〇 抽出コピー",
+  "version": "0.1.0",
+  "description": "otanjoubi.jp の誕生花/石/色/酒/果/魚/鳥/木/竜/星をプレーンテキストで抽出してコピーします。",
+  "action": {
+    "default_title": "誕生〇を抽出してコピー"
+  },
+  "permissions": [],
+  "host_permissions": ["https://otanjoubi.jp/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://otanjoubi.jp/select.php*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
+

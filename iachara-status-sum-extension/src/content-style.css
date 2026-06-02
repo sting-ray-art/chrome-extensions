@@ -1,0 +1,103 @@
+.iachara-status-sum-root {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2147483647;
+  width: min(360px, calc(100vw - 24px));
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP",
+    sans-serif;
+}
+
+.iachara-status-sum-card {
+  background: rgba(24, 24, 24, 0.92);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.iachara-status-sum-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.iachara-status-sum-title {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.iachara-status-sum-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.iachara-status-sum-btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.iachara-status-sum-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.iachara-status-sum-body {
+  padding: 10px 12px;
+}
+
+.iachara-status-sum-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.iachara-status-sum-total-label {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+}
+
+.iachara-status-sum-total-value {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.iachara-status-sum-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  font-size: 12px;
+}
+
+.iachara-status-sum-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.iachara-status-sum-item span:first-child {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.iachara-status-sum-hint {
+  margin-top: 10px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.4;
+}
+

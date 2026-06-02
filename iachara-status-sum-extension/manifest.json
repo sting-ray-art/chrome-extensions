@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "いあきゃら ステータス合計",
+  "description": "いあきゃら(iachara.com)のキャラクターシートからステータス値を拾って合計を表示します。",
+  "version": "0.1.0",
+  "icons": {},
+  "host_permissions": ["*://iachara.com/*", "*://www.iachara.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["*://iachara.com/*", "*://www.iachara.com/*"],
+      "js": ["src/content-script.js"],
+      "css": ["src/content-style.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
+
