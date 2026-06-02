@@ -38,14 +38,11 @@ function getCharaIdFromUrl() {
   return m2 ? m2[2] : null;
 }
 
-function getPageMode() {
+function isSheetPage() {
   const p = location.pathname || "";
-  if (p.startsWith("/edit/")) return "edit";
-  if (p.startsWith("/view/")) return "view";
-  // next export HTMLなど
-  if (document.querySelector('p[id="__next-route-announcer__"]')?.textContent?.includes("/edit/")) return "edit";
-  if (document.querySelector('p[id="__next-route-announcer__"]')?.textContent?.includes("/view/")) return "view";
-  return "unknown";
+  if (p.startsWith("/edit/") || p.startsWith("/view/")) return true;
+  const ann = document.querySelector('p[id="__next-route-announcer__"]')?.textContent || "";
+  return ann.includes("/edit/") || ann.includes("/view/");
 }
 
 function normalizeNumberText(s) {
@@ -202,6 +199,42 @@ function uniqueByLabelKeepFirst(pairs) {
   return out;
 }
 
+const UI_STATE_KEY = "iacharaStatusSum.uiState.v1";
+
+function loadUiState() {
+  try {
+    const raw = sessionStorage.getItem(UI_STATE_KEY);
+    if (!raw) return { userCollapsed: false, collapsed: false };
+    const v = JSON.parse(raw);
+    return {
+      userCollapsed: !!v.userCollapsed,
+      collapsed: !!v.collapsed
+    };
+  } catch {
+    return { userCollapsed: false, collapsed: false };
+  }
+}
+
+function saveUiState(next) {
+  try {
+    sessionStorage.setItem(UI_STATE_KEY, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
+
+function setCollapsed(collapsed, { userAction }) {
+  const cur = loadUiState();
+  const next = {
+    userCollapsed: userAction ? collapsed : cur.userCollapsed,
+    collapsed
+  };
+  saveUiState(next);
+
+  const root = document.getElementById(EXT_ROOT_ID);
+  if (root) root.classList.toggle("iachara-status-sum-collapsed", collapsed);
+}
+
 function* iterTextElements(root = document.body) {
   if (!root) return;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
@@ -281,31 +314,6 @@ function collectValueCandidates() {
   }
 
   return out;
-}
-
-function collectValueCandidatesForMode(mode) {
-  if (mode === "edit") {
-    // 編集画面は input が正なので、input中心（誤爆しやすいテキスト数値は捨てる）
-    /** @type {{el: Element, kind: "input" | "text"}[]} */
-    const out = [];
-    const inputs = document.querySelectorAll('input[type="number"], input[type="text"], input');
-    for (const el of inputs) {
-      if (!isVisibleElement(el)) continue;
-      const input = /** @type {HTMLInputElement} */ (el);
-      // 数値化できるものだけ
-      const v = normalizeNumberText(input.value);
-      if (v == null) continue;
-      out.push({ el, kind: "input" });
-    }
-    return out;
-  }
-
-  if (mode === "view") {
-    // 閲覧画面はテキスト表示が多い想定。inputも拾うが、優先度は row判定側で制御する。
-    return collectValueCandidates();
-  }
-
-  return collectValueCandidates();
 }
 
 function extractValueFromCandidate(candidate) {
@@ -399,27 +407,23 @@ function findNearestValueFromLabelEl(labelEl, valueCandidates) {
 }
 
 function collectStatusPairsForMode(mode) {
+  // モード分岐はやめて、詳細/編集ともにAPIを優先する
+  const apiPairs = maybeGetPairsFromCachedApi();
+  if (apiPairs) return uniqueByLabelKeepFirst(apiPairs);
+
+  // APIがまだ取れていない/取得できない場合のみDOMフォールバック
   /** @type {{label: string, value: number}[]} */
   const pairs = [];
-
-  // 詳細（閲覧）画面はAPIレスポンスが取れればそれを優先（DOMより安定）
-  if (mode === "view") {
-    const apiPairs = maybeGetPairsFromCachedApi();
-    if (apiPairs) return uniqueByLabelKeepFirst(apiPairs);
-  }
-
-  const valueCandidates = collectValueCandidatesForMode(mode);
-
+  const valueCandidates = collectValueCandidates();
   for (const label of TARGET_LABELS) {
     const labelEls = findLabelElements(label);
     for (const el of labelEls) {
       const v = findNearestValueFromLabelEl(el, valueCandidates);
       if (v == null) continue;
       pairs.push({ label, value: v });
-      break; // そのラベルは最初に取れた1件だけでOK
+      break;
     }
   }
-
   return uniqueByLabelKeepFirst(pairs);
 }
 
@@ -435,9 +439,12 @@ function renderPanel(pairs) {
       <div class="iachara-status-sum-card">
         <div class="iachara-status-sum-header">
           <div class="iachara-status-sum-title">ステータス合計</div>
-          <div class="iachara-status-sum-actions">
-            <button type="button" class="iachara-status-sum-btn" data-action="refresh">更新</button>
-            <button type="button" class="iachara-status-sum-btn iachara-status-sum-btn-toggle" data-action="toggle" aria-expanded="true">詳細</button>
+          <div class="iachara-status-sum-header-right">
+            <div class="iachara-status-sum-header-total" data-field="headerTotal"><span>合計</span>-</div>
+            <div class="iachara-status-sum-actions">
+              <button type="button" class="iachara-status-sum-btn" data-action="refresh" aria-label="更新" title="更新">🔄</button>
+              <button type="button" class="iachara-status-sum-btn" data-action="collapse" aria-pressed="false" aria-label="最小化" title="最小化">—</button>
+            </div>
           </div>
         </div>
         <div class="iachara-status-sum-body">
@@ -461,6 +468,18 @@ function renderPanel(pairs) {
         update();
         return;
       }
+      if (action === "collapse") {
+        const st = loadUiState();
+        const next = !st.collapsed;
+        setCollapsed(next, { userAction: true });
+        if (btn instanceof HTMLButtonElement) {
+          btn.setAttribute("aria-pressed", next ? "true" : "false");
+          btn.textContent = next ? "▢" : "—";
+          btn.setAttribute("aria-label", next ? "最大化" : "最小化");
+          btn.setAttribute("title", next ? "最大化" : "最小化");
+        }
+        return;
+      }
       if (action === "toggle") {
         const list = root.querySelector('[data-field="list"]');
         if (!(list instanceof HTMLElement)) return;
@@ -470,10 +489,22 @@ function renderPanel(pairs) {
         return;
       }
     });
+
+    const st = loadUiState();
+    root.classList.toggle("iachara-status-sum-collapsed", st.collapsed);
+    const collapseBtn = root.querySelector('button[data-action="collapse"]');
+    if (collapseBtn instanceof HTMLButtonElement) {
+      collapseBtn.setAttribute("aria-pressed", st.collapsed ? "true" : "false");
+      collapseBtn.textContent = st.collapsed ? "▢" : "—";
+      collapseBtn.setAttribute("aria-label", st.collapsed ? "最大化" : "最小化");
+      collapseBtn.setAttribute("title", st.collapsed ? "最大化" : "最小化");
+    }
   }
 
   const totalEl = root.querySelector('[data-field="total"]');
   if (totalEl) totalEl.textContent = Number.isFinite(total) ? String(total) : "-";
+  const headerTotalEl = root.querySelector('[data-field="headerTotal"]');
+  if (headerTotalEl) headerTotalEl.innerHTML = `<span>合計</span>${escapeHtml(Number.isFinite(total) ? String(total) : "-")}`;
 
   const listEl = root.querySelector('[data-field="list"]');
   if (listEl) {
@@ -517,18 +548,72 @@ function escapeHtml(s) {
 }
 
 let lastPairsJson = "";
+let lastPathname = "";
+let lastCharaId = null;
 function update() {
-  const mode = getPageMode();
-  const pairs = collectStatusPairsForMode(mode);
-  const json = JSON.stringify({ mode, pairs });
+  const pairs = collectStatusPairsForMode("any");
+  const json = JSON.stringify({ id: getCharaIdFromUrl(), pairs });
   if (json === lastPairsJson) return;
   lastPairsJson = json;
   renderPanel(pairs);
 }
 
+function onRouteMaybeChanged() {
+  const now = `${location.pathname}${location.search}${location.hash}`;
+  if (now === lastPathname) return;
+  lastPathname = now;
+
+  const st = loadUiState();
+  const newCharaId = getCharaIdFromUrl();
+
+  // キャラIDが変わったら、古いキャッシュ/表示が残らないように即クリア
+  if (newCharaId !== lastCharaId) {
+    lastCharaId = newCharaId;
+    cachedCharaSheet = null;
+    lastPairsJson = "";
+    // いったん空表示にして「前ページの数値が残る」を防ぐ
+    renderPanel([]);
+  }
+
+  // 画面遷移したらリセットして最小化（ただしユーザーが最小化を選んでいたら固定）
+  if (!st.userCollapsed) setCollapsed(true, { userAction: false });
+
+  // 詳細/編集画面に入ったら大きく（ただしユーザー最小化なら固定）
+  if (isSheetPage() && !st.userCollapsed) setCollapsed(false, { userAction: false });
+
+  update();
+}
+
 function start() {
   if (!isIacharaPage()) return;
   installApiHookOnce();
+
+  // 初期ルートでサイズ決定
+  onRouteMaybeChanged();
+
+  // SPA遷移検知（pushState/replaceState + popstate）
+  const origPush = history.pushState;
+  const origReplace = history.replaceState;
+  history.pushState = function () {
+    const r = origPush.apply(this, arguments);
+    onRouteMaybeChanged();
+    return r;
+  };
+  history.replaceState = function () {
+    const r = origReplace.apply(this, arguments);
+    onRouteMaybeChanged();
+    return r;
+  };
+  window.addEventListener("popstate", onRouteMaybeChanged);
+  // BFCache（戻る/進む）で復帰した時も拾う
+  window.addEventListener("pageshow", onRouteMaybeChanged);
+
+  // Next.jsのroute announcer変化でも拾う
+  const ann = document.querySelector('p[id="__next-route-announcer__"]');
+  if (ann) {
+    const moRoute = new MutationObserver(onRouteMaybeChanged);
+    moRoute.observe(ann, { childList: true, characterData: true, subtree: true });
+  }
 
   update();
 

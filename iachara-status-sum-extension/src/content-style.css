@@ -75,6 +75,34 @@
   padding: 10px 12px;
 }
 
+.iachara-status-sum-collapsed {
+  /* 最小化しても横幅は変えない（被り回避や配置がズレるため） */
+}
+
+.iachara-status-sum-collapsed .iachara-status-sum-body {
+  display: none;
+}
+
+.iachara-status-sum-header-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.iachara-status-sum-header-total {
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.iachara-status-sum-header-total span {
+  font-weight: 600;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.72);
+  margin-right: 6px;
+}
+
 .iachara-status-sum-total {
   display: flex;
   align-items: baseline;
