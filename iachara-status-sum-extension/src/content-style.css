@@ -1,7 +1,7 @@
 .iachara-status-sum-root {
   position: fixed;
   right: 12px;
-  bottom: 12px;
+  bottom: 96px;
   z-index: 2147483647;
   width: min(360px, calc(100vw - 24px));
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP",
@@ -49,6 +49,26 @@
 }
 .iachara-status-sum-btn:hover {
   background: rgba(255, 255, 255, 0.14);
+}
+
+.iachara-status-sum-btn-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.iachara-status-sum-btn-toggle::after {
+  content: "▾";
+  display: inline-block;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.9;
+  transform: rotate(0deg);
+  transition: transform 140ms ease;
+}
+
+.iachara-status-sum-btn-toggle[aria-expanded="true"]::after {
+  transform: rotate(180deg);
 }
 
 .iachara-status-sum-body {

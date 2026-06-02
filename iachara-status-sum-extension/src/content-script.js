@@ -17,6 +17,9 @@ const TARGET_LABELS = [
   "EDU"
 ];
 
+const API_HOST = "apiv3.iachara.com";
+const API_PATH_RE = /\/v3\/charasheet\/(\d+)(\?|$)/;
+
 function isIacharaPage() {
   const text = document.body?.innerText || "";
   if (text.includes("いあきゃら")) return true;
@@ -24,6 +27,25 @@ function isIacharaPage() {
   if (text.includes("いあぷろじぇくと")) return true;
   if (location.hostname === "iachara.com" || location.hostname === "www.iachara.com") return true;
   return false;
+}
+
+function getCharaIdFromUrl() {
+  const m = (location.pathname || "").match(/\/(view|edit)\/(\d+)/);
+  if (m) return m[2];
+  // next export html（route announcerに出ている）
+  const ann = document.querySelector('p[id="__next-route-announcer__"]')?.textContent || "";
+  const m2 = ann.match(/\/(view|edit)\/(\d+)/);
+  return m2 ? m2[2] : null;
+}
+
+function getPageMode() {
+  const p = location.pathname || "";
+  if (p.startsWith("/edit/")) return "edit";
+  if (p.startsWith("/view/")) return "view";
+  // next export HTMLなど
+  if (document.querySelector('p[id="__next-route-announcer__"]')?.textContent?.includes("/edit/")) return "edit";
+  if (document.querySelector('p[id="__next-route-announcer__"]')?.textContent?.includes("/view/")) return "view";
+  return "unknown";
 }
 
 function normalizeNumberText(s) {
@@ -38,6 +60,136 @@ function normalizeNumberText(s) {
   const v = Number(n[0]);
   return Number.isFinite(v) ? v : null;
 }
+
+/** @type {{ id: string | null, abilities: any | null, updatedAt: number } | null} */
+let cachedCharaSheet = null;
+
+function extractAbilitiesFromCharasheetResponse(json) {
+  // お手本（冒 皓月 - いあきゃら.html）の構造:
+  // {
+  //   success: true,
+  //   data: {
+  //     id: 13846086,
+  //     name: "...",
+  //     data: { abilities: { str:{value:..}, ... } }
+  //   }
+  // }
+  const abilities = json?.data?.data?.abilities;
+  if (abilities && typeof abilities === "object") return abilities;
+
+  // 将来の互換用フォールバック（現時点のお手本では使われない想定）
+  const alt = json?.data?.abilities ?? json?.abilities;
+  if (alt && typeof alt === "object") return alt;
+
+  return null;
+}
+
+function abilitiesFromApiToPairs(abilities) {
+  if (!abilities || typeof abilities !== "object") return [];
+  /** @type {{label: string, value: number}[]} */
+  const pairs = [];
+
+  const map = {
+    STR: "str",
+    CON: "con",
+    POW: "pow",
+    DEX: "dex",
+    APP: "app",
+    SIZ: "siz",
+    INT: "int",
+    EDU: "edu"
+  };
+
+  for (const label of TARGET_LABELS) {
+    const k = map[label];
+    const v = abilities?.[k]?.value;
+    if (typeof v === "number" && Number.isFinite(v)) pairs.push({ label, value: v });
+  }
+  return pairs;
+}
+
+function maybeGetPairsFromCachedApi() {
+  const id = getCharaIdFromUrl();
+  if (!id) return null;
+  if (!cachedCharaSheet?.abilities) return null;
+  if (cachedCharaSheet.id && cachedCharaSheet.id !== id) return null;
+  const pairs = abilitiesFromApiToPairs(cachedCharaSheet.abilities);
+  if (pairs.length === 0) return null;
+  return pairs;
+}
+
+function installApiHookOnce() {
+  if (installApiHookOnce._installed) return;
+  installApiHookOnce._installed = true;
+
+  function matchUrl(url) {
+    try {
+      const u = new URL(url, location.href);
+      if (u.hostname !== API_HOST) return null;
+      const m = u.pathname.match(API_PATH_RE);
+      return m ? m[1] : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function tryParseAndCache(url, bodyText) {
+    const id = matchUrl(url);
+    if (!id) return;
+    try {
+      const json = JSON.parse(bodyText);
+      const abilities = extractAbilitiesFromCharasheetResponse(json);
+      if (!abilities) return;
+      cachedCharaSheet = { id, abilities, updatedAt: Date.now() };
+    } catch {
+      // ignore
+    }
+  }
+
+  // fetch hook
+  const origFetch = window.fetch;
+  if (typeof origFetch === "function") {
+    window.fetch = function (input, init) {
+      const url = typeof input === "string" ? input : input?.url ? input.url : "";
+      return origFetch.apply(this, arguments).then((res) => {
+        if (!matchUrl(url)) return res;
+        try {
+          const clone = res.clone();
+          clone.text().then((t) => {
+            tryParseAndCache(url, t);
+            update();
+          }).catch(() => {});
+        } catch {}
+        return res;
+      });
+    };
+  }
+
+  // XHR hook
+  const XHR = window.XMLHttpRequest;
+  if (XHR && XHR.prototype) {
+    const origOpen = XHR.prototype.open;
+    const origSend = XHR.prototype.send;
+    XHR.prototype.open = function (method, url) {
+      this.__iacharaUrl = url;
+      return origOpen.apply(this, arguments);
+    };
+    XHR.prototype.send = function () {
+      try {
+        this.addEventListener("load", () => {
+          const url = this.__iacharaUrl;
+          if (!matchUrl(url)) return;
+          if (typeof this.responseText === "string") {
+            tryParseAndCache(url, this.responseText);
+            update();
+          }
+        });
+      } catch {}
+      return origSend.apply(this, arguments);
+    };
+  }
+}
+installApiHookOnce._installed = false;
 
 function uniqueByLabelKeepFirst(pairs) {
   const seen = new Set();
@@ -131,6 +283,31 @@ function collectValueCandidates() {
   return out;
 }
 
+function collectValueCandidatesForMode(mode) {
+  if (mode === "edit") {
+    // 編集画面は input が正なので、input中心（誤爆しやすいテキスト数値は捨てる）
+    /** @type {{el: Element, kind: "input" | "text"}[]} */
+    const out = [];
+    const inputs = document.querySelectorAll('input[type="number"], input[type="text"], input');
+    for (const el of inputs) {
+      if (!isVisibleElement(el)) continue;
+      const input = /** @type {HTMLInputElement} */ (el);
+      // 数値化できるものだけ
+      const v = normalizeNumberText(input.value);
+      if (v == null) continue;
+      out.push({ el, kind: "input" });
+    }
+    return out;
+  }
+
+  if (mode === "view") {
+    // 閲覧画面はテキスト表示が多い想定。inputも拾うが、優先度は row判定側で制御する。
+    return collectValueCandidates();
+  }
+
+  return collectValueCandidates();
+}
+
 function extractValueFromCandidate(candidate) {
   if (candidate.kind === "input") {
     const input = /** @type {HTMLInputElement} */ (candidate.el);
@@ -171,7 +348,7 @@ function findValueInSameRow(labelEl, valueCandidates) {
       const dx = r.left - labelRect.right;
       // 右側の近傍だけに絞る（無制限にすると別の固定値を拾いがち）
       if (dx < -4) continue;
-      if (dx > 260) continue;
+      if (dx > 320) continue;
 
       if (!best || dx < best.dx) best = { dx, value: v };
     }
@@ -221,11 +398,17 @@ function findNearestValueFromLabelEl(labelEl, valueCandidates) {
   return best ? best.value : null;
 }
 
-function collectStatusPairs() {
+function collectStatusPairsForMode(mode) {
   /** @type {{label: string, value: number}[]} */
   const pairs = [];
 
-  const valueCandidates = collectValueCandidates();
+  // 詳細（閲覧）画面はAPIレスポンスが取れればそれを優先（DOMより安定）
+  if (mode === "view") {
+    const apiPairs = maybeGetPairsFromCachedApi();
+    if (apiPairs) return uniqueByLabelKeepFirst(apiPairs);
+  }
+
+  const valueCandidates = collectValueCandidatesForMode(mode);
 
   for (const label of TARGET_LABELS) {
     const labelEls = findLabelElements(label);
@@ -254,7 +437,7 @@ function renderPanel(pairs) {
           <div class="iachara-status-sum-title">ステータス合計</div>
           <div class="iachara-status-sum-actions">
             <button type="button" class="iachara-status-sum-btn" data-action="refresh">更新</button>
-            <button type="button" class="iachara-status-sum-btn" data-action="toggle">詳細</button>
+            <button type="button" class="iachara-status-sum-btn iachara-status-sum-btn-toggle" data-action="toggle" aria-expanded="true">詳細</button>
           </div>
         </div>
         <div class="iachara-status-sum-body">
@@ -283,6 +466,7 @@ function renderPanel(pairs) {
         if (!(list instanceof HTMLElement)) return;
         const isHidden = list.style.display === "none";
         list.style.display = isHidden ? "grid" : "none";
+        if (btn instanceof HTMLButtonElement) btn.setAttribute("aria-expanded", isHidden ? "true" : "false");
         return;
       }
     });
@@ -301,12 +485,15 @@ function renderPanel(pairs) {
   const hintEl = root.querySelector('[data-field="hint"]');
   if (hintEl) {
     const missing = TARGET_LABELS.filter((l) => !pairs.find((p) => p.label === l));
-    hintEl.textContent =
+    const msg =
       pairs.length === 0
         ? "このページでステータスが見つかりませんでした（閲覧/編集画面を開いてから更新してください）。"
         : missing.length > 0
           ? `未検出: ${missing.join(", ")}`
-          : "OK";
+          : "";
+    hintEl.textContent = msg;
+    // “OK” 表示をやめたので、空なら非表示
+    hintEl.style.display = msg ? "block" : "none";
   }
 }
 
@@ -331,8 +518,9 @@ function escapeHtml(s) {
 
 let lastPairsJson = "";
 function update() {
-  const pairs = collectStatusPairs();
-  const json = JSON.stringify(pairs);
+  const mode = getPageMode();
+  const pairs = collectStatusPairsForMode(mode);
+  const json = JSON.stringify({ mode, pairs });
   if (json === lastPairsJson) return;
   lastPairsJson = json;
   renderPanel(pairs);
@@ -340,6 +528,8 @@ function update() {
 
 function start() {
   if (!isIacharaPage()) return;
+  installApiHookOnce();
+
   update();
 
   // Reactで後からDOMが変わるので監視して追従

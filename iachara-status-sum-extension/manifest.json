@@ -10,6 +10,7 @@
       "matches": ["*://iachara.com/*", "*://www.iachara.com/*"],
       "js": ["src/content-script.js"],
       "css": ["src/content-style.css"],
+      "world": "MAIN",
       "run_at": "document_idle"
     }
   ]
