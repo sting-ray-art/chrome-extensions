@@ -99,8 +99,12 @@ function abilitiesFromApiToPairs(abilities) {
 
   for (const label of TARGET_LABELS) {
     const k = map[label];
-    const v = abilities?.[k]?.value;
-    if (typeof v === "number" && Number.isFinite(v)) pairs.push({ label, value: v });
+    const ability = abilities?.[k];
+    const base = ability?.value;
+    if (typeof base !== "number" || !Number.isFinite(base)) continue;
+    const fixedDiff =
+      typeof ability?.fixedDiff === "number" && Number.isFinite(ability.fixedDiff) ? ability.fixedDiff : 0;
+    pairs.push({ label, value: base + fixedDiff });
   }
   return pairs;
 }
