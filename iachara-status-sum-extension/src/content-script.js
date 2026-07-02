@@ -45,6 +45,80 @@ function isSheetPage() {
   return ann.includes("/edit/") || ann.includes("/view/");
 }
 
+function isEditPage() {
+  const p = location.pathname || "";
+  if (p.startsWith("/edit/")) return true;
+  const ann = document.querySelector('p[id="__next-route-announcer__"]')?.textContent || "";
+  return ann.includes("/edit/");
+}
+
+function hasAbilityTableClass(el) {
+  for (const cls of el.classList) {
+    if (cls.startsWith("AbilityTable_")) return true;
+  }
+  return false;
+}
+
+/** 能力値列の <select>（技能Pの計算方法プルダウンは除外） */
+function isAbilityValueSelect(el) {
+  if (!(el instanceof HTMLSelectElement)) return false;
+  if (!el.closest('[class*="AbilityTable_"]')) return false;
+  if (hasAbilityTableClass(el)) return false;
+
+  const opts = [...el.options];
+  if (opts.length < 10) return false;
+  if (opts[0]?.value !== "0") return false;
+  const second = (opts[1]?.textContent || "").trim();
+  return /^\d+$/.test(second);
+}
+
+function findAbilityTableColumnInputs(columnLabel) {
+  const headers = document.querySelectorAll(
+    '[class*="AbilityTable_tableLeftHeader"], [class*="AbilityTable_tableLeftHeaderMobile"]'
+  );
+
+  /** @type {HTMLInputElement[] | null} */
+  let best = null;
+  let bestContainerSize = Infinity;
+
+  for (const header of headers) {
+    if ((header.textContent || "").replace(/\s+/g, "").trim() !== columnLabel) continue;
+    if (!isVisibleElement(header)) continue;
+
+    let container = header.parentElement;
+    for (let depth = 0; depth < 8 && container; depth++) {
+      const inputs = [...container.querySelectorAll("input")].filter(
+        (el) => el.closest('[class*="AbilityTable_"]') && isVisibleElement(el)
+      );
+      if (inputs.length >= TARGET_LABELS.length) {
+        const size = container.querySelectorAll("*").length;
+        if (size < bestContainerSize) {
+          bestContainerSize = size;
+          best = inputs.slice(0, TARGET_LABELS.length);
+        }
+        break;
+      }
+      container = container.parentElement;
+    }
+  }
+
+  return best;
+}
+
+function collectPairsFromCurrentValueColumn() {
+  const inputs = findAbilityTableColumnInputs("現在値");
+  if (!inputs) return null;
+
+  /** @type {{label: string, value: number}[]} */
+  const pairs = [];
+  for (let i = 0; i < TARGET_LABELS.length; i++) {
+    const v = normalizeNumberText(inputs[i].value);
+    if (v == null || v <= 0) return null;
+    pairs.push({ label: TARGET_LABELS[i], value: v });
+  }
+  return pairs;
+}
+
 function normalizeNumberText(s) {
   const t = (s ?? "").toString().trim();
   if (!t) return null;
@@ -81,24 +155,36 @@ function extractAbilitiesFromCharasheetResponse(json) {
   return null;
 }
 
+const ABILITY_KEY_MAP = {
+  STR: "str",
+  CON: "con",
+  POW: "pow",
+  DEX: "dex",
+  APP: "app",
+  SIZ: "siz",
+  INT: "int",
+  EDU: "edu"
+};
+
+function abilityCurrentValueFromApiEntry(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  if (typeof entry.sum === "number" && Number.isFinite(entry.sum)) return entry.sum;
+
+  const base = typeof entry.value === "number" && Number.isFinite(entry.value) ? entry.value : 0;
+  const fixed = typeof entry.fixedDiff === "number" && Number.isFinite(entry.fixedDiff) ? entry.fixedDiff : 0;
+  const tmp =
+    typeof entry.tmpFixedDiff === "number" && Number.isFinite(entry.tmpFixedDiff) ? entry.tmpFixedDiff : 0;
+  const v = base + fixed + tmp;
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
 function abilitiesFromApiToPairs(abilities) {
   if (!abilities || typeof abilities !== "object") return [];
   /** @type {{label: string, value: number}[]} */
   const pairs = [];
 
-  const map = {
-    STR: "str",
-    CON: "con",
-    POW: "pow",
-    DEX: "dex",
-    APP: "app",
-    SIZ: "siz",
-    INT: "int",
-    EDU: "edu"
-  };
-
   for (const label of TARGET_LABELS) {
-    const k = map[label];
+    const k = ABILITY_KEY_MAP[label];
     const ability = abilities?.[k];
     const base = ability?.value;
     if (typeof base !== "number" || !Number.isFinite(base)) continue;
@@ -109,12 +195,27 @@ function abilitiesFromApiToPairs(abilities) {
   return pairs;
 }
 
-function maybeGetPairsFromCachedApi() {
+function abilitiesFromApiToCurrentPairs(abilities) {
+  if (!abilities || typeof abilities !== "object") return [];
+  /** @type {{label: string, value: number}[]} */
+  const pairs = [];
+
+  for (const label of TARGET_LABELS) {
+    const k = ABILITY_KEY_MAP[label];
+    const v = abilityCurrentValueFromApiEntry(abilities?.[k]);
+    if (v != null) pairs.push({ label, value: v });
+  }
+  return pairs;
+}
+
+function maybeGetPairsFromCachedApi({ useCurrent = false } = {}) {
   const id = getCharaIdFromUrl();
   if (!id) return null;
   if (!cachedCharaSheet?.abilities) return null;
   if (cachedCharaSheet.id && cachedCharaSheet.id !== id) return null;
-  const pairs = abilitiesFromApiToPairs(cachedCharaSheet.abilities);
+  const pairs = useCurrent
+    ? abilitiesFromApiToCurrentPairs(cachedCharaSheet.abilities)
+    : abilitiesFromApiToPairs(cachedCharaSheet.abilities);
   if (pairs.length === 0) return null;
   return pairs;
 }
@@ -411,7 +512,17 @@ function findNearestValueFromLabelEl(labelEl, valueCandidates) {
 }
 
 function collectStatusPairsForMode(mode) {
-  // モード分岐はやめて、詳細/編集ともにAPIを優先する
+  // 編集画面: 現在値列 → API（現在値）のみ（ラベル探索は技能欄等の数字を誤拾いするため使わない）
+  if (isEditPage()) {
+    const currentPairs = collectPairsFromCurrentValueColumn();
+    if (currentPairs) return uniqueByLabelKeepFirst(currentPairs);
+
+    const apiPairs = maybeGetPairsFromCachedApi({ useCurrent: true });
+    if (apiPairs) return uniqueByLabelKeepFirst(apiPairs);
+
+    return [];
+  }
+
   const apiPairs = maybeGetPairsFromCachedApi();
   if (apiPairs) return uniqueByLabelKeepFirst(apiPairs);
 
@@ -554,11 +665,25 @@ function escapeHtml(s) {
 let lastPairsJson = "";
 let lastPathname = "";
 let lastCharaId = null;
+/** @type {{label: string, value: number}[] | null} */
+let lastGoodEditPairs = null;
+
+function isCompletePairs(pairs) {
+  return pairs.length === TARGET_LABELS.length && TARGET_LABELS.every((l) => pairs.some((p) => p.label === l));
+}
+
 function update() {
   const pairs = collectStatusPairsForMode("any");
+
+  // 編集画面で一時的に取得失敗した場合、直前の正常値で上書きしない
+  if (isEditPage() && !isCompletePairs(pairs) && lastGoodEditPairs) return;
+
   const json = JSON.stringify({ id: getCharaIdFromUrl(), pairs });
   if (json === lastPairsJson) return;
   lastPairsJson = json;
+
+  if (isEditPage() && isCompletePairs(pairs)) lastGoodEditPairs = pairs;
+
   renderPanel(pairs);
 }
 
@@ -575,6 +700,7 @@ function onRouteMaybeChanged() {
     lastCharaId = newCharaId;
     cachedCharaSheet = null;
     lastPairsJson = "";
+    lastGoodEditPairs = null;
     // いったん空表示にして「前ページの数値が残る」を防ぐ
     renderPanel([]);
   }
@@ -588,9 +714,42 @@ function onRouteMaybeChanged() {
   update();
 }
 
+function isAbilityTableEditTarget(el) {
+  if (!(el instanceof Element)) return false;
+  if (!el.closest('[class*="AbilityTable_"]')) return false;
+  if (el instanceof HTMLSelectElement && isAbilityValueSelect(el)) return true;
+  // 増加分・一時的など、現在値に影響する入力欄
+  if (el instanceof HTMLInputElement && !el.disabled) return true;
+  return false;
+}
+
+function scheduleEditUpdate() {
+  window.clearTimeout(scheduleEditUpdate._t);
+  // React が現在値列を再描画するのを待つ
+  scheduleEditUpdate._t = window.setTimeout(update, 50);
+}
+scheduleEditUpdate._t = 0;
+
+function installEditAbilityListenerOnce() {
+  if (installEditAbilityListenerOnce._installed) return;
+  installEditAbilityListenerOnce._installed = true;
+
+  const onEditAbilityChange = (e) => {
+    if (!isEditPage()) return;
+    if (!isAbilityTableEditTarget(e.target)) return;
+    scheduleEditUpdate();
+  };
+
+  document.addEventListener("change", onEditAbilityChange, true);
+  document.addEventListener("input", onEditAbilityChange, true);
+  document.addEventListener("blur", onEditAbilityChange, true);
+}
+installEditAbilityListenerOnce._installed = false;
+
 function start() {
   if (!isIacharaPage()) return;
   installApiHookOnce();
+  installEditAbilityListenerOnce();
 
   // 初期ルートでサイズ決定
   onRouteMaybeChanged();
