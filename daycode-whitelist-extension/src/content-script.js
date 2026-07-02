@@ -23,18 +23,95 @@
     return `${STORAGE_PREFIX}:${sessionKey}`;
   }
 
+  function isExtensionContextValid() {
+    try {
+      return Boolean(chrome?.runtime?.id);
+    } catch {
+      return false;
+    }
+  }
+
+  function readLocalWhitelist(key) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function writeLocalWhitelist(key, userIds) {
+    try {
+      localStorage.setItem(key, JSON.stringify(userIds));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function loadWhitelist(sessionKey) {
+    const key = storageKey(sessionKey);
+
+    if (!isExtensionContextValid()) {
+      return Promise.resolve(readLocalWhitelist(key));
+    }
+
     return new Promise((resolve) => {
-      chrome.storage.sync.get(storageKey(sessionKey), (data) => {
-        resolve(data[storageKey(sessionKey)] || null);
-      });
+      try {
+        chrome.storage.sync.get(key, (data) => {
+          if (chrome.runtime.lastError) {
+            resolve(readLocalWhitelist(key));
+            return;
+          }
+          resolve(data[key] ?? readLocalWhitelist(key) ?? null);
+        });
+      } catch {
+        resolve(readLocalWhitelist(key));
+      }
     });
   }
 
   function saveWhitelist(sessionKey, userIds) {
+    const key = storageKey(sessionKey);
+    writeLocalWhitelist(key, userIds);
+
+    if (!isExtensionContextValid()) {
+      return Promise.resolve({ ok: false, invalidated: true });
+    }
+
     return new Promise((resolve) => {
-      chrome.storage.sync.set({ [storageKey(sessionKey)]: userIds }, resolve);
+      try {
+        chrome.storage.sync.set({ [key]: userIds }, () => {
+          if (chrome.runtime.lastError) {
+            const message = chrome.runtime.lastError.message || "";
+            resolve({
+              ok: false,
+              invalidated: message.includes("Extension context invalidated"),
+            });
+            return;
+          }
+          resolve({ ok: true, invalidated: false });
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        resolve({
+          ok: false,
+          invalidated: message.includes("Extension context invalidated"),
+        });
+      }
     });
+  }
+
+  function showStorageNotice(root) {
+    if (root.querySelector(".daycode-whitelist-notice")) return;
+
+    const notice = document.createElement("p");
+    notice.className = "daycode-whitelist-notice";
+    notice.textContent =
+      "拡張機能が更新されました。設定はこのページ内では保持されます。完全に反映するにはページを再読み込みしてください。";
+    root.querySelector(".daycode-whitelist-body")?.prepend(notice);
   }
 
   function extractUserId(href) {
@@ -273,7 +350,7 @@
     }
 
     function persistSelection() {
-      onApply(new Set(checkedUserIds));
+      void onApply(new Set(checkedUserIds));
     }
 
     renderUserList();
@@ -344,7 +421,10 @@
 
     const panel = buildPanel(users, enabledUserIds, async (nextEnabledUserIds) => {
       applyWhitelist(users, nextEnabledUserIds);
-      await saveWhitelist(sessionKey, [...nextEnabledUserIds]);
+      const result = await saveWhitelist(sessionKey, [...nextEnabledUserIds]);
+      if (!result.ok && result.invalidated) {
+        showStorageNotice(panel);
+      }
     });
 
     document.body.appendChild(panel);

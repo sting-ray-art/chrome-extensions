@@ -72,6 +72,17 @@
   flex-shrink: 0;
 }
 
+.daycode-whitelist-notice {
+  margin: 0;
+  padding: 8px 12px;
+  background: #fff3cd;
+  border-bottom: 1px solid #ffeeba;
+  color: #856404;
+  font-size: 11px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
 .daycode-whitelist-search-wrap {
   padding: 8px 12px 0;
   flex-shrink: 0;

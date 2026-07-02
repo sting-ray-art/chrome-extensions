@@ -122,3 +122,4 @@ daycode-whitelist-extension/
 - 対象: `*://character-sheets.appspot.com/schedule/*`
 - 日程表 DOM 構造は `table.schedule_table` / `#namerow` / `#filterrow` / `#row_*` を参照
 - ホワイトリストは `chrome.storage.sync` に `daycodeWhitelist:{sessionKey}` 形式で保存
+- 拡張機能の再読み込み後に `chrome.storage` が使えなくなった場合は、同一ページ内では `localStorage` にフォールバック
