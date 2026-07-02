@@ -11,11 +11,13 @@
 |----------|------|------------|------|
 | [`iachara-status-sum-extension/`](iachara-status-sum-extension/) | いあきゃら ステータス合計 | [いあきゃら](https://iachara.com) | キャラクターシートの能力値 8 種を読み取り、合計を右下に表示 |
 | [`otanjoubi-birth-extractor-ext/`](otanjoubi-birth-extractor-ext/) | お誕生日.jp 誕生〇 抽出コピー | [お誕生日.jp](https://otanjoubi.jp) | 誕生花・石・色などをプレーンテキストに整形してコピー |
+| [`daycode-whitelist-extension/`](daycode-whitelist-extension/) | デイコード 参加者フィルター | [デイコード](https://character-sheets.appspot.com/schedule) | 日程状況一覧で選択した参加者の列だけを表示（検索・50音順対応） |
 
 各ツールの使い方・トラブルシューティングは、フォルダ内の README を参照してください。
 
 - [いあきゃら ステータス合計](iachara-status-sum-extension/README.md)
 - [お誕生日.jp 誕生〇 抽出コピー](otanjoubi-birth-extractor-ext/README.md)
+- [デイコード 参加者フィルター](daycode-whitelist-extension/README.md)
 
 ---
 
@@ -40,7 +42,8 @@
 ```
 script/
 ├── iachara-status-sum-extension/   ← いあきゃら用
-└── otanjoubi-birth-extractor-ext/  ← お誕生日.jp 用
+├── otanjoubi-birth-extractor-ext/  ← お誕生日.jp 用
+└── daycode-whitelist-extension/    ← デイコード用
 ```
 
 例:

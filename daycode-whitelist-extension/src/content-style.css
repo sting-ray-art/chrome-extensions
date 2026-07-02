@@ -1,0 +1,168 @@
+#daycode-whitelist-root {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 10000;
+  font-family: BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  color: #363636;
+}
+
+#daycode-whitelist-root.daycode-whitelist-root--collapsed .daycode-whitelist-body {
+  display: none;
+}
+
+.daycode-whitelist-panel {
+  display: flex;
+  flex-direction: column;
+  width: 320px;
+  height: min(480px, 70vh);
+  background: #fff;
+  border: 1px solid #dbdbdb;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(10, 10, 10, 0.12);
+  overflow: hidden;
+}
+
+.daycode-whitelist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #485fc7;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.daycode-whitelist-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.daycode-whitelist-toggle {
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.daycode-whitelist-toggle:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.daycode-whitelist-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.daycode-whitelist-summary {
+  margin: 0;
+  padding: 8px 12px;
+  background: #f5f5f5;
+  border-bottom: 1px solid #ededed;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.daycode-whitelist-search-wrap {
+  padding: 8px 12px 0;
+  flex-shrink: 0;
+}
+
+.daycode-whitelist-search {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #dbdbdb;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.daycode-whitelist-search:focus {
+  outline: none;
+  border-color: #485fc7;
+  box-shadow: 0 0 0 2px rgba(72, 95, 199, 0.15);
+}
+
+.daycode-whitelist-actions {
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #ededed;
+  flex-shrink: 0;
+}
+
+.daycode-whitelist-actions button {
+  flex: 1;
+  border: 1px solid #dbdbdb;
+  background: #fff;
+  border-radius: 4px;
+  padding: 6px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.daycode-whitelist-actions button:hover {
+  background: #fafafa;
+}
+
+.daycode-whitelist-list-area {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.daycode-whitelist-list {
+  height: 100%;
+  overflow-y: auto;
+  padding: 8px 12px;
+  box-sizing: border-box;
+}
+
+.daycode-whitelist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.daycode-whitelist-item input {
+  margin-top: 2px;
+}
+
+.daycode-whitelist-item-label {
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.daycode-whitelist-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 12px;
+  color: #7a7a7a;
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.daycode-whitelist-empty[hidden] {
+  display: none !important;
+}
+
+.schedule_table .daycode-whitelist-hidden-col {
+  display: none !important;
+}

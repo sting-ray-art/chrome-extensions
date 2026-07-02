@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "デイコード 参加者フィルター",
+  "description": "デイコード（character-sheets.appspot.com/schedule）の日程表で、選択した参加者だけを表示します。",
+  "version": "0.1.0",
+  "icons": {},
+  "permissions": ["storage"],
+  "host_permissions": ["*://character-sheets.appspot.com/schedule/*"],
+  "content_scripts": [
+    {
+      "matches": ["*://character-sheets.appspot.com/schedule/*"],
+      "js": ["src/content-script.js"],
+      "css": ["src/content-style.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
